@@ -1,2 +1,3 @@
-idf_component_register(SRCS "cncesp32.c"
-                    INCLUDE_DIRS ".")
+file(GLOB_RECURSE SOURCES "*.c")
+idf_component_register(SRCS ${SOURCES}
+                    INCLUDE_DIRS "." "motors")
