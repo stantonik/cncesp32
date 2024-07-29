@@ -71,8 +71,8 @@ extern esp_err_t motor_enable(struct motor *motor);
 extern esp_err_t motor_disable(struct motor *motor);
 extern esp_err_t motor_stop(struct motor *motor);
 
-extern esp_err_t motor_turn_step(struct motor *motor, uint32_t steps, double rpm, enum motor_dir dir);
-extern esp_err_t motor_turn_deg(struct motor *motor, double deg, uint16_t rpm, enum motor_dir dir);
+extern esp_err_t motor_turn_step(struct motor *motor, int32_t steps, double rpm);
+extern esp_err_t motor_turn_deg(struct motor *motor, double deg, uint16_t rpm);
 
 
 #ifdef __cplusplus

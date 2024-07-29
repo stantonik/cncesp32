@@ -9,6 +9,8 @@
 /******************************/
 #include "motors.h"
 
+#include <math.h>
+
 #include "driver/gpio.h"
 #include "driver/gptimer.h"
 #include "esp_check.h"
@@ -157,7 +159,7 @@ esp_err_t motor_delete_by_id(int8_t id)
   return ESP_OK;
 }
 
-esp_err_t motor_turn_step(struct motor *motor, uint32_t steps, double rpm, enum motor_dir dir)
+esp_err_t motor_turn_step(struct motor *motor, int32_t steps, double rpm)
 {
   ESP_RETURN_ON_FALSE(motor != NULL, -1, TAG, "Motor is NULL.");
   ESP_RETURN_ON_FALSE(is_motor_init(motor), -1, TAG, "Motor %s is not initialized.", motor->name);
@@ -166,15 +168,18 @@ esp_err_t motor_turn_step(struct motor *motor, uint32_t steps, double rpm, enum 
   ESP_RETURN_ON_FALSE(motor_internal->state == MOTOR_STILL_STATE, -1, TAG, "Motor %s is already moving !", motor->name);
   ESP_RETURN_ON_FALSE(motor_internal->enable, -1, TAG, "Motor %s is disable.", motor->name);
 
+  int32_t asteps = abs(steps);
+  enum motor_dir dir = (steps >= 0) ? 0 : 1;
+
   motor_internal->dir_state = dir;
   gpio_set_level(motor->dir_pin, (int)dir);
 
-  motor_internal->step_remaining = steps;
+  motor_internal->step_remaining = asteps;
   motor_internal->period_us = (60.f / rpm) / (float)motor->step_per_rev * 1 * 1000 * 1000;
   motor_internal->state = MOTOR_CONSTANT_STATE;
   gpio_set_level(motor->step_pin, 1);
 
-  ESP_LOGI(TAG, "Motor %s is turning... Period : %i | Steps : %i", motor->name, (int)motor_internal->period_us, (int)steps);
+  ESP_LOGI(TAG, "Motor %s is turning... Period : %i | Steps : %i", motor->name, (int)motor_internal->period_us, (int)asteps);
 
   return ESP_OK;
 }
