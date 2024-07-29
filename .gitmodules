@@ -1,0 +1,3 @@
+[submodule "/Users/stanleyarn/Documents/Github/Project/cncesp32/main/components/lvgl"]
+	path = /Users/stanleyarn/Documents/Github/Project/cncesp32/main/components/lvgl
+	url = git@github.com:lvgl/lvgl.git
