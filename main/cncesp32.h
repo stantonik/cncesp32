@@ -53,6 +53,7 @@ extern "C" {
 extern esp_err_t init();
 extern esp_err_t move_absolute(float x, float y, float z, float f);
 extern esp_err_t move_relative(float x, float y, float z, float f);
+extern void webserver_post_callback(char *key, char *val);
 
 extern void app_main(void);
 

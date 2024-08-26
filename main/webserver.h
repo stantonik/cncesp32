@@ -37,6 +37,7 @@ extern "C" {
 /*   Function Declarations    */
 /******************************/
 extern esp_err_t webserver_init();
+extern esp_err_t webserver_set_post_callback(void(*callback)(char *, char *));
 
 #ifdef __cplusplus
 }

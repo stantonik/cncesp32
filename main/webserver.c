@@ -9,7 +9,10 @@
 /******************************/
 #include "webserver.h"
 
+#include "jsmn.h"
+
 #include <string.h>
+
 #include "esp_event.h"
 #include "esp_wifi.h"
 #include "esp_check.h"
@@ -26,10 +29,12 @@
 /******************************/
 /*     Static Variables       */
 /******************************/
-#define TAG "wifi station"
+#define TAG "webserver"
 
 static int retry_num = 0;
 static const char *html_str;
+static void (*post_callback)(char *key, char *val);
+static bool initialized = false;
 
 /******************************/
 /*    Function Prototypes     */
@@ -77,7 +82,8 @@ esp_err_t webserver_init()
   mdns_instance_name_set("Stanley's CNC");
 
   /* Get HTML file */
-  html_str = "<!DOCTYPE html>\n"
+  html_str = 
+"<!DOCTYPE html>\n"
 "<html lang=\"en\">\n"
 "\n"
 "  <head>\n"
@@ -168,126 +174,128 @@ esp_err_t webserver_init()
 "              <button onclick=\"step = 1;\" class=\"p-1 w-full bg-gray-600 hover:bg-gray-700 rounded-lg text-center\">1</button>\n"
 "              <button onclick=\"step = 10;\" class=\"p-1 w-full bg-gray-600 hover:bg-gray-700 rounded-lg text-center\">10</button>\n"
 "            </div>\n"
+"          </div>\n"
 "        </div>\n"
 "      </div>\n"
 "    </div>\n"
 "\n"
 "    <script>\n"
-"var step = 0.1;\n"
+"      var step = 0.1;\n"
 "\n"
-"function send_post_request(obj)\n"
-"{\n"
-"  fetch(\"http://localhost:3000/\", {\n"
-"    method: \"POST\",\n"
-"    body: JSON.stringify(obj),\n"
-"    headers: {\n"
-"      \"Content-type\": \"application/json; charset=UTF-8\"\n"
-"    }\n"
-"  })\n"
-"    .then(response => response.json())\n"
-"    .then(json => console.log(json)) \n"
-"    .catch(err => console.error('Error:', err)); \n"
-"}\n"
+"      function send_post_request(obj)\n"
+"      {\n"
+"        fetch(\"data\", {\n"
+"          method: \"POST\",\n"
+"          body: JSON.stringify(obj),\n"
+"          headers: {\n"
+"            \"Content-type\": \"application/json; charset=UTF-8\"\n"
+"          }\n"
+"        })\n"
+"          .then(response => response.json())\n"
+"          .then(json => console.log(json)) \n"
+"          .catch(err => console.error('Error:', err)); \n"
+"      }\n"
 "\n"
-"function handle_file_select(e) \n"
-"{\n"
-"  let fl_files = document.getElementById('dropzone-file').files;\n"
-"  if (fl_files.length === 0) {\n"
-"    console.warn(\"No file selected.\");\n"
-"    return;\n"
-"  }\n"
+"      function handle_file_select(e) \n"
+"      {\n"
+"        let fl_files = document.getElementById('dropzone-file').files;\n"
+"        if (fl_files.length === 0) {\n"
+"          console.warn(\"No file selected.\");\n"
+"          return;\n"
+"        }\n"
 "\n"
-"  let fl_file = fl_files[0]\n"
+"        let fl_file = fl_files[0]\n"
 "\n"
-"  let reader = new FileReader();\n"
-"  reader.onload = function(e) {\n"
-"    send_post_request({ \"gcode-file\": e.target.result });\n"
-"  };\n"
+"        let reader = new FileReader();\n"
+"        reader.onload = function(e) {\n"
+"          send_post_request({ \"gcode-file\": e.target.result });\n"
+"        };\n"
 "\n"
-"  reader.readAsText(fl_file);\n"
+"        reader.readAsText(fl_file);\n"
 "\n"
-"  e.preventDefault();\n"
-"  return false;\n"
-"}\n"
+"        e.preventDefault();\n"
+"        return false;\n"
+"      }\n"
 "\n"
-"function console_chat_send(e)\n"
-"{\n"
-"  let log = document.getElementById(\"console-log\");\n"
-"  let input = document.getElementById(\"console-chat\");\n"
+"      function console_chat_send(e)\n"
+"      {\n"
+"        let log = document.getElementById(\"console-log\");\n"
+"        let input = document.getElementById(\"console-chat\");\n"
 "\n"
-"  if (input.value.length > 0)\n"
-"  {\n"
-"    // Send the command\n"
-"    send_post_request({ \"gcode-cmd\": input.value.toUpperCase() });\n"
-"    // Display command on the logs\n"
-"    var val = log.value.replace(/^\\n+/,\"\");\n"
-"    val += (new Date()).toLocaleTimeString() + \" > \" + input.value.toUpperCase() + \"\\n\";\n"
-"    log.value = val;\n"
+"        if (input.value.length > 0)\n"
+"        {\n"
+"          // Send the command\n"
+"          send_post_request({ \"gcode-cmd\": input.value.toUpperCase() });\n"
+"          // Display command on the logs\n"
+"          var val = log.value.replace(/^\\n+/,\"\");\n"
+"          val += (new Date()).toLocaleTimeString() + \" > \" + input.value.toUpperCase() + \"\\n\";\n"
+"          log.value = val;\n"
 "\n"
-"    var padding = [];\n"
-"    while (log.clientHeight >= log.scrollHeight) {\n"
-"      padding.push(\"\\n\");\n"
-"      log.value = \"\\n\" + log.value;\n"
-"    }\n"
-"    padding.pop();\n"
-"    log.value = padding.join(\"\") + val;\n"
-"    log.scrollTop = log.scrollHeight;\n"
-"    input.value = \"\";\n"
-"  }\n"
+"          var padding = [];\n"
+"          while (log.clientHeight >= log.scrollHeight) {\n"
+"            padding.push(\"\\n\");\n"
+"            log.value = \"\\n\" + log.value;\n"
+"          }\n"
+"          padding.pop();\n"
+"          log.value = padding.join(\"\") + val;\n"
+"          log.scrollTop = log.scrollHeight;\n"
+"          input.value = \"\";\n"
+"        }\n"
 "\n"
-"  e.preventDefault();\n"
-"  return false;\n"
-"}\n"
+"        e.preventDefault();\n"
+"        return false;\n"
+"      }\n"
 "\n"
-"function change_dropzone(e)\n"
-"{\n"
-"  if (e.target.files.length == 0) return;\n"
-"  document.getElementById(\"dropzone-filename-div\").innerHTML = \"<p>\" + e.target.files[0].name + \"</p>\"\n"
-"}\n"
+"      function change_dropzone(e)\n"
+"      {\n"
+"        if (e.target.files.length == 0) return;\n"
+"        document.getElementById(\"dropzone-filename-div\").innerHTML = \"<p>\" + e.target.files[0].name + \"</p>\"\n"
+"      }\n"
 "\n"
-"function populate_axes_control_div()\n"
-"{\n"
-"  let div = document.getElementById(\"axes-control-div\");\n"
-"  let template = div.children[1].outerHTML;\n"
-"  let axe_names = [\"X\", \"Y\", \"Z\", \"E\"];\n"
-"  for (let i = 0; i < 3; i++)\n"
-"  {\n"
-"    div.innerHTML += template.replace(/X/g, axe_names[i + 1]);\n"
-"  }\n"
+"      function populate_axes_control_div()\n"
+"      {\n"
+"        let div = document.getElementById(\"axes-control-div\");\n"
+"        let template = div.children[1].outerHTML;\n"
+"        let axe_names = [\"X\", \"Y\", \"Z\", \"E\"];\n"
+"        for (let i = 0; i < 3; i++)\n"
+"        {\n"
+"          div.innerHTML += template.replace(/X/g, axe_names[i + 1]);\n"
+"        }\n"
 "\n"
-"  div.childNodes.forEach(x => x.addEventListener(\"click\", control_axe));\n"
-"}\n"
+"        div.childNodes.forEach(x => x.addEventListener(\"click\", control_axe));\n"
+"      }\n"
 "\n"
-"function control_axe(e)\n"
-"{\n"
-"  let axe_name = e.target.id[0];\n"
-"  let dir = 1;\n"
+"      function control_axe(e)\n"
+"      {\n"
+"        let axe_name = e.target.id[0];\n"
+"        let dir = 1;\n"
 "\n"
-"  if (e.target.className.includes(\"axe-ctrl-but-add\"))\n"
-"  {\n"
-"    dir = 1;\n"
-"  }\n"
-"  else\n"
-"  {\n"
-"    dir = -1;\n"
-"  }\n"
+"        if (e.target.className.includes(\"axe-ctrl-but-add\"))\n"
+"        {\n"
+"          dir = 1;\n"
+"        }\n"
+"        else\n"
+"        {\n"
+"          dir = -1;\n"
+"        }\n"
 "\n"
-"  let pos = parseFloat(document.getElementById(axe_name + \"-control-label\").innerHTML);\n"
-"  document.getElementById(axe_name + \"-control-label\").innerHTML = String((pos + dir * step).toFixed(1));\n"
+"        let pos = parseFloat(document.getElementById(axe_name + \"-control-label\").innerHTML);\n"
+"        document.getElementById(axe_name + \"-control-label\").innerHTML = String((pos + dir * step).toFixed(1));\n"
 "\n"
-"  // Send the command\n"
-"  let body = {  };\n"
-"  body[axe_name.concat(\"_move_from\")] = dir * step;\n"
-"  send_post_request(body);\n"
-"}\n"
+"        // Send the command\n"
+"        let body = {  };\n"
+"        body[axe_name.concat(\"_move_from\")] = (dir * step).toString();\n"
+"        send_post_request(body);\n"
+"      }\n"
 "\n"
-"populate_axes_control_div();\n"
+"      populate_axes_control_div();\n"
 "\n"
-"document.getElementById(\"print-form\").addEventListener(\"submit\", handle_file_select);\n"
+"      document.getElementById(\"print-form\").addEventListener(\"submit\", handle_file_select);\n"
 "\n"
-"document.getElementById(\"dropzone-file\").addEventListener(\"change\", change_dropzone);\n"
+"      document.getElementById(\"dropzone-file\").addEventListener(\"change\", change_dropzone);\n"
 "\n"
-"document.getElementById(\"console-chat-form\").addEventListener(\"submit\", console_chat_send, false);"
+"      document.getElementById(\"console-chat-form\").addEventListener(\"submit\", console_chat_send, false);\n"
+"\n"
 "    </script>\n"
 "  </body>\n"
 "\n"
@@ -318,12 +326,23 @@ esp_err_t webserver_init()
 
   httpd_uri_t _root_post_handler = 
   {
-    .uri = "/post",
+    .uri = "/data",
     .method = HTTP_POST,
     .handler = root_post_handler,
     .user_ctx = NULL
   };
   httpd_register_uri_handler(server, &_root_post_handler);
+
+  initialized = true;
+
+  return ESP_OK;
+}
+
+esp_err_t webserver_set_post_callback(void (*callback)(char *, char *))
+{
+  ESP_RETURN_ON_FALSE(initialized, -1, TAG, "server not initialized");
+  ESP_RETURN_ON_FALSE(callback != NULL, -1, TAG, "post callback is null");
+  post_callback = callback;
 
   return ESP_OK;
 }
@@ -356,10 +375,27 @@ esp_err_t root_post_handler(httpd_req_t *req)
       return ESP_FAIL;
     }
     off += ret;
-    ESP_LOGI(TAG, "root_post_handler recv length %d", ret);
   }
   buf[off] = '\0';
   ESP_LOGI(TAG, "root_post_handler buf=[%s]", buf);
+  
+  jsmn_parser p;
+  jsmn_init(&p);
+  jsmntok_t t[3];
+  size_t r = jsmn_parse(&p, buf, strlen(buf), t, 3);
+
+  if (r > 0 && t[0].type == JSMN_OBJECT) 
+  {
+    char *key = strndup(buf + t[1].start, t[1].end - t[1].start);
+    char *value = strndup(buf + t[2].start, t[2].end - t[2].start);
+
+    post_callback(key, value);
+
+    free(key);
+    free(value);
+  }
+
+  free(buf);
 
   // Redirect to the root page
   httpd_resp_set_status(req, "303 See Other");

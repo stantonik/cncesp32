@@ -1886,6 +1886,14 @@ CONFIG_LV_I2C_TOUCH_PORT=0
 # end of LVGL ESP Drivers
 
 #
+# jsmn
+#
+# CONFIG_JSMN_PARENT_LINKS is not set
+# CONFIG_JSMN_STRICT is not set
+# CONFIG_JSMN_STATIC is not set
+# end of jsmn
+
+#
 # mDNS
 #
 CONFIG_MDNS_MAX_INTERFACES=3

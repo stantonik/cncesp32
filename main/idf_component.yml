@@ -1,5 +1,6 @@
 ## IDF Component Manager Manifest File
 dependencies:
+  espressif/jsmn: "^1.1.0"
   espressif/mdns: "*"
   lvgl/lvgl: "^8.4.0"
   ## Required IDF version
