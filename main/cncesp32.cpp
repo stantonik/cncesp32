@@ -13,11 +13,11 @@
 #include <cstring>
 #include <string.h>
 
-#include "esp_err.h"
-#include "esp_log.h"
 #include "stepperesp.h"
 #include "webserver.h"
+#include "gcode.h"
 
+#include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -29,8 +29,6 @@
 float xpos, ypos, zpos;
 
 motor_handle_t xmotor, ymotor, zmotor, emotor;
-motor_handle_t *motors[4] = { &xmotor, &ymotor, &zmotor, &emotor };
-char motor_names[4] = { 'X', 'Y', 'Z', 'E' };
 
 /******************************/
 /*     Static Variables       */
@@ -45,6 +43,10 @@ char motor_names[4] = { 'X', 'Y', 'Z', 'E' };
 /******************************/
 esp_err_t init()
 {
+  /*  */
+  gcode_reset();
+  gcode_set_cmd_callback(gcode_cmd_callback);
+
   /* Motors initialization */
   struct motor_config x_motor_config =
   {
@@ -116,7 +118,7 @@ esp_err_t init()
 
 esp_err_t move_absolute(float x, float y, float z, float f)
 {
-  return move_relative(xpos - x, ypos - y, zpos - z, f);
+  return move_relative(x - xpos, y - ypos, z - zpos, f);
 }
 
 esp_err_t move_relative(float x, float y, float z, float f)
@@ -135,6 +137,10 @@ esp_err_t move_relative(float x, float y, float z, float f)
   motor_turn_mm(xmotor, x, xf);
   motor_turn_mm(ymotor, y, yf);
   motor_turn_mm(zmotor, z, zf);
+
+  xpos += x;
+  ypos += y;
+  zpos += z;
 
   return 0;
 }
@@ -157,10 +163,32 @@ void webserver_post_callback(char *key, char *val)
   }
   else if (strcmp(key, "gcode-cmd") == 0)
   {
+    gcode_read_cmd(val);
   }
   else
   {
     ESP_LOGW(TAG, "'%s' key token unknown", key);
+  }
+}
+
+void gcode_cmd_callback(char cmd_type, int cmd_number)
+{
+  ESP_LOGI(TAG, "Command : %c%i", cmd_type, cmd_number);
+  ESP_LOGI(TAG, "X%f", gcode_get_param_value('X'));
+  if (cmd_type == 'G')
+  {
+    if (cmd_number == 0)
+    {
+      move_absolute(gcode_get_param_value('X'), gcode_get_param_value('Y'), gcode_get_param_value('Z'), gcode_get_param_value('F'));
+    }
+    else if (cmd_number == 1)
+    {
+      move_absolute(gcode_get_param_value('X'), gcode_get_param_value('Y'), gcode_get_param_value('Z'), gcode_get_param_value('F'));
+    }
+  }
+  else if (cmd_type == 'M')
+  {
+
   }
 }
 

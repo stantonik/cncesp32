@@ -7,10 +7,6 @@
 #ifndef CNCESP32_H
 #define CNCESP32_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /******************************/
 /*          INCLUDES          */
 /******************************/
@@ -50,17 +46,14 @@ extern "C" {
 /******************************/
 /*   Function Declarations    */
 /******************************/
-extern esp_err_t init();
-extern esp_err_t move_absolute(float x, float y, float z, float f);
-extern esp_err_t move_relative(float x, float y, float z, float f);
-extern void webserver_post_callback(char *key, char *val);
+esp_err_t init();
+esp_err_t move_absolute(float x, float y, float z, float f);
+esp_err_t move_relative(float x, float y, float z, float f);
 
-extern void app_main(void);
+void webserver_post_callback(char *key, char *val);
+void gcode_cmd_callback(char cmd_type, int cmd_number);
 
-#ifdef __cplusplus
-}
-#endif /* __cplusplus */
-
+extern "C" void app_main(void);
 
 #endif /* CNCESP32_H */
 
