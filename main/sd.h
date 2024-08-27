@@ -1,11 +1,11 @@
 /**
  * @author      : stanleyarn (stanleyarn@$HOSTNAME)
- * @file        : gcode
- * @created     : Tuesday Aug 27, 2024 02:13:27 CEST
+ * @file        : sd
+ * @created     : Tuesday Aug 27, 2024 16:43:38 CEST
  */
 
-#ifndef GCODE_H
-#define GCODE_H
+#ifndef SD_H
+#define SD_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,12 +14,12 @@ extern "C" {
 /******************************/
 /*          INCLUDES          */
 /******************************/
-#include <stdlib.h>
 #include "esp_err.h"
 
 /******************************/
 /*      Macro Definitions     */
 /******************************/
+#define SD_MOUNT_POINT "/sd"
 
 /******************************/
 /*   Typedefs, Struct, Enums  */
@@ -32,18 +32,12 @@ extern "C" {
 /******************************/
 /*   Function Declarations    */
 /******************************/
-extern esp_err_t gcode_reset();
-extern esp_err_t gcode_read_file(FILE *file);
-extern esp_err_t gcode_read_cmd(const char *cmd);
-
-extern float gcode_get_param_value(char param);
-extern esp_err_t gcode_get_last_cmd(char *type, uint16_t *number);
-
-extern esp_err_t gcode_set_cmd_callback(void (*callback)(char type, int number));
+extern esp_err_t sd_init();
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
-#endif /* GCODE_H */
+
+#endif /* SD_H */
 

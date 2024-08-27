@@ -16,6 +16,7 @@
 #include "stepperesp.h"
 #include "webserver.h"
 #include "gcode.h"
+#include "sd.h"
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -43,7 +44,8 @@ motor_handle_t xmotor, ymotor, zmotor, emotor;
 /******************************/
 esp_err_t init()
 {
-  /*  */
+  /* Utilities */
+  sd_init();
   gcode_reset();
   gcode_set_cmd_callback(gcode_cmd_callback);
 
