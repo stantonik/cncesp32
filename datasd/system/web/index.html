@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNC Control Interface</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  </head>
+
+  <body class="bg-gray-900 text-white min-h-screen p-5">
+    <!-- Navigation bar -->
+    <div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-7 gap-6">
+      <!-- Components go here -->
+
+      <!-- Informations -->
+      <div class="col-span-2 bg-gray-800 p-5 rounded-lg">
+        <h2 class="text-xl font-semibold mb-4">Status</h2>
+        <ul>
+          <li>Status : </li>
+          <li>Temperature : </li>
+        </ul>
+      </div>
+
+      <!-- Console -->
+      <div class="col-span-3 bg-gray-800 p-5 rounded-lg">
+        <h2 class="text-xl font-semibold mb-4">&gt Console</h2>
+        <textarea readonly id="console-log" rows="8" class="block resize-none p-2.5 w-full text-sm rounded-lg border bg-gray-700 border-gray-600 text-white focus:outline-none"></textarea><br>
+        <form id="console-chat-form">
+          <input autocomplete="off" id="console-chat" class="uppercase p-2 w-full text-sm rounded-lg border bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500" placeholder="Type a command...">
+        </form>
+      </div>
+
+      <!-- Print -->
+      <div class="col-span-2 bg-gray-800 p-5 rounded-lg">
+        <h2 class="text-xl font-semibold mb-4">Print</h2>
+        <form enctype="multipart/form-data" id="print-form">
+          <!-- File deposit -->
+          <div class="flex items-center justify-center w-full">
+            <label for="dropzone-file" class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-800 bg-gray-700 border-gray-600 hover:border-gray-500 hover:bg-gray-600">
+              <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                <svg class="w-8 h-8 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                  <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
+                </svg>
+                <p class="mb-2 text-sm text-gray-400 text-center"><span class="font-semibold">Click to upload</span> G-Code or drag and drop<p>
+                <div id="dropzone-filename-div"></div>
+              </div>
+              <input id="dropzone-file" type="file" class="hidden" />
+            </label>
+          </div><br>
+
+          <button type="submit" class="p-1 bg-gray-600 hover:bg-gray-700 rounded-lg w-full">Upload</button><br><br>
+        </form>
+      </div>
+
+      <!-- Mouvement control -->
+      <div class="col-start-1 col-span-7 bg-gray-800 p-5 rounded-lg">
+        <h2 class="text-xl font-semibold mb-4">Mouvement control</h2>
+        <div class="grid grid-cols-1 md:grid-cols-7 gap-x-6">
+          <!-- Live controls -->
+          <div class="col-span-2 p-4">
+            <label for="speed-range" class="block mb-2 text-sm font-medium">Speed factor</label>
+            <input id="speed-range" type="range" min="0" max="10" value="5" class="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-700"><br><br>
+            <label for="extrusion-range" class="block mb-2 text-sm font-medium">Extrusion factor</label>
+            <input id="extrusion-range" type="range" min="0" max="10" value="5" class="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-700">
+          </div>
+
+          <!-- Axes control -->
+          <div class="col-span-3">
+            <div id="axes-control-div" class="grid grid-cols-5 gap-x-6">
+              <!-- Utilities -->
+              <div>
+                <button class="p-3 w-full bg-gray-600 hover:bg-gray-700 rounded-lg text-center">Homing</button><br>
+              </div>
+              <!-- X -->
+              <div class="p-2 border-2 border-dashed border-blue-400 rounded-lg">
+                <button id="Xadd-control-button" class="axe-ctrl-but-add p-3 w-full bg-gray-600 hover:bg-gray-700 rounded-lg text-center">X+</button><br>
+                <p id="X-control-label" class="text-center mt-2 mb-2">0</p>
+                <button id="Xsub-control-button" class="axe-ctrl-but-sub p-3 w-full bg-gray-600 hover:bg-gray-700 rounded-lg text-center">X-</button>
+              </div>
+            </div>
+
+            <br><div class="grid grid-cols-4 px-2 py-2 gap-x-6 border-2 border-dashed border-gray-600 rounded-lg">
+              <label for="" class="p-1">Step :</label>
+              <button onclick="step = 0.1;" class="p-1 w-full bg-gray-600 hover:bg-gray-700 rounded-lg text-center">0.1</button>
+              <button onclick="step = 1;" class="p-1 w-full bg-gray-600 hover:bg-gray-700 rounded-lg text-center">1</button>
+              <button onclick="step = 10;" class="p-1 w-full bg-gray-600 hover:bg-gray-700 rounded-lg text-center">10</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      var step = 0.1;
+
+      function send_post_request(obj)
+      {
+        fetch("data", {
+          method: "POST",
+          body: JSON.stringify(obj),
+          headers: {
+            "Content-type": "application/json; charset=UTF-8"
+          }
+        })
+          .then(response => response.json())
+          .then(json => console.log(json)) 
+          .catch(err => console.error('Error:', err)); 
+      }
+
+      function handle_file_select(e) 
+      {
+        let fl_files = document.getElementById('dropzone-file').files;
+        if (fl_files.length === 0) {
+          console.warn("No file selected.");
+          return;
+        }
+
+        let fl_file = fl_files[0]
+
+        let reader = new FileReader();
+        reader.onload = function(e) {
+          send_post_request({ "gcode-file": e.target.result });
+        };
+
+        reader.readAsText(fl_file);
+
+        e.preventDefault();
+        return false;
+      }
+
+      function console_chat_send(e)
+      {
+        let log = document.getElementById("console-log");
+        let input = document.getElementById("console-chat");
+
+        if (input.value.length > 0)
+        {
+          // Send the command
+          send_post_request({ "gcode-cmd": input.value.toUpperCase() });
+          // Display command on the logs
+          var val = log.value.replace(/^\n+/,"");
+          val += (new Date()).toLocaleTimeString() + " > " + input.value.toUpperCase() + "\n";
+          log.value = val;
+
+          var padding = [];
+          while (log.clientHeight >= log.scrollHeight) {
+            padding.push("\n");
+            log.value = "\n" + log.value;
+          }
+          padding.pop();
+          log.value = padding.join("") + val;
+          log.scrollTop = log.scrollHeight;
+          input.value = "";
+        }
+
+        e.preventDefault();
+        return false;
+      }
+
+      function change_dropzone(e)
+      {
+        if (e.target.files.length == 0) return;
+        document.getElementById("dropzone-filename-div").innerHTML = "<p>" + e.target.files[0].name + "</p>"
+      }
+
+      function populate_axes_control_div()
+      {
+        let div = document.getElementById("axes-control-div");
+        let template = div.children[1].outerHTML;
+        let axe_names = ["X", "Y", "Z", "E"];
+        for (let i = 0; i < 3; i++)
+        {
+          div.innerHTML += template.replace(/X/g, axe_names[i + 1]);
+        }
+
+        div.childNodes.forEach(x => x.addEventListener("click", control_axe));
+      }
+
+      function control_axe(e)
+      {
+        let axe_name = e.target.id[0];
+        let dir = 1;
+
+        if (e.target.className.includes("axe-ctrl-but-add"))
+        {
+          dir = 1;
+        }
+        else
+        {
+          dir = -1;
+        }
+
+        let pos = parseFloat(document.getElementById(axe_name + "-control-label").innerHTML);
+        document.getElementById(axe_name + "-control-label").innerHTML = String((pos + dir * step).toFixed(1));
+
+        // Send the command
+        let body = {  };
+        body[axe_name.concat("_move_from")] = (dir * step).toString();
+        send_post_request(body);
+      }
+
+      populate_axes_control_div();
+
+      document.getElementById("print-form").addEventListener("submit", handle_file_select);
+
+      document.getElementById("dropzone-file").addEventListener("change", change_dropzone);
+
+      document.getElementById("console-chat-form").addEventListener("submit", console_chat_send, false);
+
+    </script>
+  </body>
+
+</html>

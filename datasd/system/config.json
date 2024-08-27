@@ -1,0 +1,47 @@
+{
+  "wifi_ssid": "SFR_8450",
+  "wifi_password": "uhq55dykr8fni27ucvb4",
+  "wifi_auth_mode": "wpa/wpa2",
+
+  "server_mdns_hostname": "cncesp",
+  "server_port": 80,
+
+  "x_motor_dir_pin": 25,
+  "x_motor_step_pin": 26,
+  "x_motor_revsteps": 48,
+  "x_motor_microsteps": 26,
+  "x_motor_lead": 8,
+
+  "y_motor_dir_pin": 25,
+  "y_motor_step_pin": 26,
+  "y_motor_revsteps": 48,
+  "y_motor_microsteps": 26,
+  "y_motor_lead": 8,
+
+  "z_motor_dir_pin": 25,
+  "z_motor_step_pin": 26,
+  "z_motor_revsteps": 48,
+  "z_motor_microsteps": 26,
+  "z_motor_lead": 8,
+
+  "e_motor_dir_pin": 25,
+  "e_motor_step_pin": 26,
+  "e_motor_revsteps": 48,
+  "e_motor_microsteps": 26,
+  "e_motor_lead": 8,
+
+  "hotend_fan_pin": -1,
+  "hotend_thermistance_pin": -1,
+  "hotend_resistance_pin": -1,
+
+  "port_miso_pin": -1,
+  "port_mosi_pin": -1,
+  "port_clk_pin": -1,
+
+  "ui_display_cs_pin": -1,
+  "ui_display_ao_pin": -1,
+  "ui_display_reset_pin": -1,
+  "ui_rotary_encoder_clk_pin": -1,
+  "ui_rotary_encoder_dt_pin": -1,
+  "ui_rotary_encoder_switch_pin": -1
+}
