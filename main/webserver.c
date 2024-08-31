@@ -46,6 +46,13 @@ static bool initialized = false;
 /******************************/
 /*    Function Prototypes     */
 /******************************/
+esp_err_t init();
+esp_err_t move_absolute(float x, float y, float z, float f);
+esp_err_t move_relative(float x, float y, float z, float f);
+
+void webserver_post_callback(char *key, char *val);
+void gcode_cmd_callback(char cmd_type, int cmd_number);
+
 static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 
 static esp_err_t root_get_handler(httpd_req_t *req);
