@@ -94,6 +94,8 @@ enum config_setting_key : uint8_t
   config_e_microsteps,
   config_e_lead,
   config_e_speed_profile,
+  config_e_accel,
+  config_e_decel,
   config_e_max_speed,
 
   config_e_max_temp,

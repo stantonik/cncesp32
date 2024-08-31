@@ -7,14 +7,10 @@
 /******************************/
 /*         Includes           */
 /******************************/
-#include "cncesp32.h"
-
-#include <cmath>
-#include <cstdio>
-#include <cstring>
+#include <math.h>
+#include <stdio.h>
 #include <string.h>
 
-#include "freertos/idf_additions.h"
 #include "stepperesp.h"
 #include "webserver.h"
 #include "gcode.h"
@@ -41,6 +37,13 @@ motor_handle_t xmotor, ymotor, zmotor, emotor;
 /******************************/
 /*    Function Prototypes     */
 /******************************/
+esp_err_t init();
+esp_err_t move_absolute(float x, float y, float z, float f);
+esp_err_t move_relative(float x, float y, float z, float f);
+
+void webserver_post_callback(char *key, char *val);
+void gcode_cmd_callback(char cmd_type, int cmd_number);
+
 void gcode_task(void *arg);
 
 /******************************/
@@ -54,49 +57,20 @@ esp_err_t init()
   gcode_set_cmd_callback(gcode_cmd_callback);
 
   /* Motors initialization */
-  struct motor_config x_motor_config = { .name = 'X' };
-  config_get_setting(config_x_motor_dir_pin, &x_motor_config.dir_pin, CONFIG_INT);
-  config_get_setting(config_x_motor_step_pin, &x_motor_config.step_pin, CONFIG_INT);
-  config_get_setting(config_x_motor_en_pin, &x_motor_config.en_pin, CONFIG_INT);
-  config_get_setting(config_x_motor_revsteps, &x_motor_config.steps_per_rev, CONFIG_UINT);
-  config_get_setting(config_x_microsteps, &x_motor_config.microsteps, CONFIG_UINT);
+  struct motor_config motor_config = { 0 };
+#define CREATE_MOTOR(axis, motor_config) \
+  motor_config.name = #axis[0]; \
+  config_get_setting(config_##axis##_motor_dir_pin, &motor_config.dir_pin, CONFIG_INT); \
+  config_get_setting(config_##axis##_motor_step_pin, &motor_config.step_pin, CONFIG_INT); \
+  config_get_setting(config_##axis##_motor_en_pin, &motor_config.en_pin, CONFIG_INT); \
+  config_get_setting(config_##axis##_motor_revsteps, &motor_config.steps_per_rev, CONFIG_UINT); \
+  config_get_setting(config_##axis##_microsteps, &motor_config.microsteps, CONFIG_UINT); \
+  ESP_ERROR_CHECK(motor_create(&motor_config, &axis##motor))
 
-  struct motor_config y_motor_config = { .name = 'Y' };
-  config_get_setting(config_y_motor_dir_pin, &y_motor_config.dir_pin, CONFIG_INT);
-  config_get_setting(config_y_motor_step_pin, &y_motor_config.step_pin, CONFIG_INT);
-  config_get_setting(config_y_motor_en_pin, &y_motor_config.en_pin, CONFIG_INT);
-  config_get_setting(config_y_motor_revsteps, &y_motor_config.steps_per_rev, CONFIG_UINT);
-  config_get_setting(config_y_microsteps, &y_motor_config.microsteps, CONFIG_UINT);
-
-  struct motor_config z_motor_config = { .name = 'Z' };
-  config_get_setting(config_z_motor_dir_pin, &z_motor_config.dir_pin, CONFIG_INT);
-  config_get_setting(config_z_motor_step_pin, &z_motor_config.step_pin, CONFIG_INT);
-  config_get_setting(config_z_motor_en_pin, &z_motor_config.en_pin, CONFIG_INT);
-  config_get_setting(config_z_motor_revsteps, &z_motor_config.steps_per_rev, CONFIG_UINT);
-  config_get_setting(config_z_microsteps, &z_motor_config.microsteps, CONFIG_UINT);
-
-  struct motor_config e_motor_config = { .name = 'E' };
-  config_get_setting(config_e_motor_dir_pin, &e_motor_config.dir_pin, CONFIG_INT);
-  config_get_setting(config_e_motor_step_pin, &e_motor_config.step_pin, CONFIG_INT);
-  config_get_setting(config_e_motor_en_pin, &e_motor_config.en_pin, CONFIG_INT);
-  config_get_setting(config_e_motor_revsteps, &e_motor_config.steps_per_rev, CONFIG_UINT);
-  config_get_setting(config_e_microsteps, &e_motor_config.microsteps, CONFIG_UINT);
-
-  struct motor_profile_config motor_profile_config = {  };
-  char temp[16];
-  config_get_setting(config_x_speed_profile, temp, CONFIG_STRING);
-  if (strcmp(temp, "LINEAR") == 0) 
-  {
-    motor_profile_config.type = MOTOR_PROFILE_LINEAR;
-    config_get_setting(config_x_accel, &motor_profile_config.accel, CONFIG_UINT);
-    config_get_setting(config_x_decel, &motor_profile_config.decel, CONFIG_UINT);
-  }
-  else if (strcmp(temp, "CONSTANT") == 0) motor_profile_config.type = MOTOR_PROFILE_CONSTANT;
-
-  ESP_ERROR_CHECK(motor_create(&x_motor_config, &xmotor));
-  ESP_ERROR_CHECK(motor_create(&y_motor_config, &ymotor));
-  /* ESP_ERROR_CHECK(motor_create(&z_motor_config, &zmotor)); */
-  /* ESP_ERROR_CHECK(motor_create(&e_motor_config, &emotor)); */
+  CREATE_MOTOR(x, motor_config);
+  CREATE_MOTOR(y, motor_config);
+  CREATE_MOTOR(z, motor_config);
+  CREATE_MOTOR(e, motor_config);
 
   float lead;
   config_get_setting(config_x_lead, &lead, CONFIG_FLOAT);
@@ -104,16 +78,32 @@ esp_err_t init()
   config_get_setting(config_y_lead, &lead, CONFIG_FLOAT);
   motor_set_lead(ymotor, lead);
   config_get_setting(config_z_lead, &lead, CONFIG_FLOAT);
-  /* motor_set_lead(zmotor, lead); */
-  motor_set_profile(xmotor, &motor_profile_config);
-  motor_set_profile(ymotor, &motor_profile_config);
-  /* motor_set_profile(zmotor, &motor_profile_config); */
+  motor_set_lead(zmotor, lead);
+  config_get_setting(config_e_lead, &lead, CONFIG_FLOAT);
+  motor_set_lead(emotor, lead);
+
+  struct motor_profile_config motor_profile_config = {  };
+  char temp[16];
+#define SET_PROFILE(axis, profile) \
+  config_get_setting(config_##axis##_speed_profile, temp, CONFIG_STRING); \
+  if (strcmp(temp, "LINEAR") == 0) \
+  { \
+    motor_profile_config.type = MOTOR_PROFILE_LINEAR; \
+    config_get_setting(config_##axis##_accel, &motor_profile_config.accel, CONFIG_UINT); \
+    config_get_setting(config_##axis##_decel, &motor_profile_config.decel, CONFIG_UINT); \
+  } \
+  else if (strcmp(temp, "CONSTANT") == 0) motor_profile_config.type = MOTOR_PROFILE_CONSTANT; \
+  motor_set_profile(axis##motor, &motor_profile_config)
+
+  SET_PROFILE(x, motor_profile_config);
+  SET_PROFILE(y, motor_profile_config);
+  SET_PROFILE(z, motor_profile_config);
 
   /* Temp */
   motor_enable(xmotor);
   motor_enable(ymotor);
-  /* motor_enable(zmotor); */
-  /* motor_enable(emotor); */
+  motor_enable(zmotor);
+  motor_enable(emotor);
 
   /* Server initialization */
   webserver_init();
@@ -142,7 +132,7 @@ esp_err_t move_relative(float x, float y, float z, float f)
   /* Move motors */
   motor_turn_mm(xmotor, x, xf);
   motor_turn_mm(ymotor, y, yf);
-  /* motor_turn_mm(zmotor, z, zf); */
+  motor_turn_mm(zmotor, z, zf);
 
   xpos += x;
   ypos += y;
@@ -153,8 +143,6 @@ esp_err_t move_relative(float x, float y, float z, float f)
 
 void webserver_post_callback(char *key, char *val)
 {
-  ESP_LOGI(TAG, "received -> key : %s, value : %s", key, val);
-
   if (strcmp(key, "X_move_from") == 0)
   {
     move_relative(atof(val), 0, 0, 30); 
@@ -190,7 +178,7 @@ void webserver_post_callback(char *key, char *val)
   }
 }
 
-void gcode_task(void *)
+void gcode_task(void *arg)
 {
   ESP_LOGI(TAG, "print started...");
   FILE *print = fopen(SD_MOUNT_POINT"/current.gcode", "r");

@@ -106,6 +106,8 @@ mapping[config_setting_count] =
     { config_e_microsteps, "e_microsteps", CONFIG_UINT },
     { config_e_lead, "e_lead", CONFIG_FLOAT },
     { config_e_speed_profile, "e_speed_profile", CONFIG_STRING },
+    { config_e_accel, "e_accel", CONFIG_FLOAT },
+    { config_e_decel, "e_decel", CONFIG_FLOAT },
     { config_e_max_speed, "e_max_speed", CONFIG_FLOAT },
 
     { config_e_max_temp, "e_max_temp", CONFIG_FLOAT },
