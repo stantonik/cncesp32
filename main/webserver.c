@@ -9,6 +9,9 @@
 /******************************/
 #include "webserver.h"
 
+#include "esp_wifi_types_generic.h"
+
+#define JSMN_HEADER
 #include "jsmn.h"
 
 #include <stdio.h>
@@ -24,6 +27,7 @@
 #include "nvs_flash.h"
 #include "mdns.h"
 #include "sd.h"
+#include "config.h"
 
 /******************************/
 /*     Global Variables       */
@@ -55,7 +59,8 @@ esp_err_t webserver_init()
 {
   /* NVS init */
   esp_err_t ret = nvs_flash_init();
-  if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)   {
+  if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)  
+  {
     nvs_flash_erase();
     nvs_flash_init();
   }
@@ -67,22 +72,35 @@ esp_err_t webserver_init()
   wifi_init_config_t wifi_initiation = WIFI_INIT_CONFIG_DEFAULT();
   esp_wifi_init(&wifi_initiation); //     
   esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL);
-  wifi_config_t wifi_configuration = {
-    .sta = {
-      .ssid = WIFI_SSID,
-      .password = WIFI_PASSWORD,
-      .threshold.authmode = WIFI_AUTH_MODE,
-    }
-  };
+  wifi_config_t wifi_cfg = {  };
+  config_get_setting(config_wifi_ssid, &wifi_cfg.sta.ssid, CONFIG_STRING);
+  config_get_setting(config_wifi_password, &wifi_cfg.sta.password, CONFIG_STRING);
+  char temp[32];
+  config_get_setting(config_wifi_auth_mode, temp, CONFIG_STRING);
+  if (strcmp(temp, "wpa/wpa2") == 0)
+  {
+    wifi_cfg.sta.threshold.authmode = WIFI_AUTH_WPA_WPA2_PSK;
+  }
+  else if (strcmp(temp, "wpa2/wpa3") == 0) 
+  {
+    wifi_cfg.sta.threshold.authmode = WIFI_AUTH_WPA2_WPA3_PSK;
+  }
+  else
+  {
+    ESP_LOGE(TAG, "'%s' invilid wifi auth mode", temp);
+    return -1;
+  }
+
   esp_wifi_set_mode(WIFI_MODE_STA);
-  esp_wifi_set_config((wifi_interface_t)ESP_IF_WIFI_STA, &wifi_configuration);
+  esp_wifi_set_config((wifi_interface_t)ESP_IF_WIFI_STA, &wifi_cfg);
   esp_wifi_start();
   esp_wifi_connect();
 
   /* Start mDNS service */
+  config_get_setting(config_hostname, temp, CONFIG_STRING);
   ESP_RETURN_ON_ERROR(mdns_init(), TAG, "mDNS service init error.");
-  mdns_hostname_set("cncesp");
-  mdns_instance_name_set("Stanley's CNC");
+  mdns_hostname_set(temp);
+  mdns_instance_name_set(temp);
 
   /* Get HTML file */
   struct stat st = {0};
@@ -125,8 +143,8 @@ esp_err_t webserver_init()
   /* Start server */
   httpd_handle_t server = NULL;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.server_port = SERVER_PORT;
 
+  config_get_setting(config_port, &config.server_port, CONFIG_UINT);
   config.uri_match_fn = httpd_uri_match_wildcard;
 
   ESP_LOGI(TAG, "Starting HTTP Server on port: '%d'", config.server_port);

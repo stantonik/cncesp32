@@ -10,6 +10,7 @@
 #include "cncesp32.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <string.h>
 
@@ -17,6 +18,7 @@
 #include "webserver.h"
 #include "gcode.h"
 #include "sd.h"
+#include "config.h"
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -44,72 +46,72 @@ motor_handle_t xmotor, ymotor, zmotor, emotor;
 /******************************/
 esp_err_t init()
 {
-  /* Utilities */
-  sd_init();
+  ESP_ERROR_CHECK(sd_init());
+  ESP_ERROR_CHECK(config_load());
   gcode_reset();
   gcode_set_cmd_callback(gcode_cmd_callback);
 
   /* Motors initialization */
-  struct motor_config x_motor_config =
-  {
-    .dir_pin = GPIO_NUM_25,
-    .step_pin = GPIO_NUM_26,
-    .steps_per_rev = 48,
-    .microsteps = 16,
-    .name = 'X'
-  };
+  struct motor_config x_motor_config = { .name = 'X' };
+  config_get_setting(config_x_motor_dir_pin, &x_motor_config.dir_pin, CONFIG_INT);
+  config_get_setting(config_x_motor_step_pin, &x_motor_config.step_pin, CONFIG_INT);
+  config_get_setting(config_x_motor_en_pin, &x_motor_config.en_pin, CONFIG_INT);
+  config_get_setting(config_x_motor_revsteps, &x_motor_config.steps_per_rev, CONFIG_UINT);
+  config_get_setting(config_x_microsteps, &x_motor_config.microsteps, CONFIG_UINT);
 
-  struct motor_config y_motor_config =
-  {
-    .dir_pin = GPIO_NUM_3,
-    .step_pin = GPIO_NUM_4,
-    .steps_per_rev = 48,
-    .microsteps = 16,
-    .name = 'Y'
-  };
+  struct motor_config y_motor_config = { .name = 'Y' };
+  config_get_setting(config_y_motor_dir_pin, &y_motor_config.dir_pin, CONFIG_INT);
+  config_get_setting(config_y_motor_step_pin, &y_motor_config.step_pin, CONFIG_INT);
+  config_get_setting(config_y_motor_en_pin, &y_motor_config.en_pin, CONFIG_INT);
+  config_get_setting(config_y_motor_revsteps, &y_motor_config.steps_per_rev, CONFIG_UINT);
+  config_get_setting(config_y_microsteps, &y_motor_config.microsteps, CONFIG_UINT);
 
-  struct motor_config z_motor_config =
-  {
-    .dir_pin = GPIO_NUM_3,
-    .step_pin = GPIO_NUM_4,
-    .steps_per_rev = 48,
-    .microsteps = 16,
-    .name = 'Z'
-  };
+  struct motor_config z_motor_config = { .name = 'Z' };
+  config_get_setting(config_z_motor_dir_pin, &z_motor_config.dir_pin, CONFIG_INT);
+  config_get_setting(config_z_motor_step_pin, &z_motor_config.step_pin, CONFIG_INT);
+  config_get_setting(config_z_motor_en_pin, &z_motor_config.en_pin, CONFIG_INT);
+  config_get_setting(config_z_motor_revsteps, &z_motor_config.steps_per_rev, CONFIG_UINT);
+  config_get_setting(config_z_microsteps, &z_motor_config.microsteps, CONFIG_UINT);
 
-  struct motor_config e_motor_config =
-  {
-    .dir_pin = GPIO_NUM_3,
-    .step_pin = GPIO_NUM_4,
-    .steps_per_rev = 48,
-    .microsteps = 16,
-    .name = 'E'
-  };
+  struct motor_config e_motor_config = { .name = 'E' };
+  config_get_setting(config_e_motor_dir_pin, &e_motor_config.dir_pin, CONFIG_INT);
+  config_get_setting(config_e_motor_step_pin, &e_motor_config.step_pin, CONFIG_INT);
+  config_get_setting(config_e_motor_en_pin, &e_motor_config.en_pin, CONFIG_INT);
+  config_get_setting(config_e_motor_revsteps, &e_motor_config.steps_per_rev, CONFIG_UINT);
+  config_get_setting(config_e_microsteps, &e_motor_config.microsteps, CONFIG_UINT);
 
-  struct motor_profile_config motor_profile_config =
+  struct motor_profile_config motor_profile_config = {  };
+  char temp[16];
+  config_get_setting(config_x_speed_profile, temp, CONFIG_STRING);
+  if (strcmp(temp, "LINEAR") == 0) 
   {
-    .type = MOTOR_PROFILE_LINEAR,
-    .accel = 7000,
-    .decel = 7000
-  };
+    motor_profile_config.type = MOTOR_PROFILE_LINEAR;
+    config_get_setting(config_x_accel, &motor_profile_config.accel, CONFIG_UINT);
+    config_get_setting(config_x_decel, &motor_profile_config.decel, CONFIG_UINT);
+  }
+  else if (strcmp(temp, "CONSTANT") == 0) motor_profile_config.type = MOTOR_PROFILE_CONSTANT;
 
   ESP_ERROR_CHECK(motor_create(&x_motor_config, &xmotor));
   ESP_ERROR_CHECK(motor_create(&y_motor_config, &ymotor));
-  ESP_ERROR_CHECK(motor_create(&z_motor_config, &zmotor));
-  ESP_ERROR_CHECK(motor_create(&e_motor_config, &emotor));
+  /* ESP_ERROR_CHECK(motor_create(&z_motor_config, &zmotor)); */
+  /* ESP_ERROR_CHECK(motor_create(&e_motor_config, &emotor)); */
 
-  motor_set_lead(xmotor, 8);
-  motor_set_lead(ymotor, 8);
-  motor_set_lead(zmotor, 8);
+  float lead;
+  config_get_setting(config_x_lead, &lead, CONFIG_FLOAT);
+  motor_set_lead(xmotor, lead);
+  config_get_setting(config_y_lead, &lead, CONFIG_FLOAT);
+  motor_set_lead(ymotor, lead);
+  config_get_setting(config_z_lead, &lead, CONFIG_FLOAT);
+  /* motor_set_lead(zmotor, lead); */
   motor_set_profile(xmotor, &motor_profile_config);
   motor_set_profile(ymotor, &motor_profile_config);
-  motor_set_profile(zmotor, &motor_profile_config);
+  /* motor_set_profile(zmotor, &motor_profile_config); */
 
   /* Temp */
   motor_enable(xmotor);
   motor_enable(ymotor);
-  motor_enable(zmotor);
-  motor_enable(emotor);
+  /* motor_enable(zmotor); */
+  /* motor_enable(emotor); */
 
   /* Server initialization */
   webserver_init();
@@ -138,7 +140,7 @@ esp_err_t move_relative(float x, float y, float z, float f)
   /* Move motors */
   motor_turn_mm(xmotor, x, xf);
   motor_turn_mm(ymotor, y, yf);
-  motor_turn_mm(zmotor, z, zf);
+  /* motor_turn_mm(zmotor, z, zf); */
 
   xpos += x;
   ypos += y;
@@ -167,6 +169,22 @@ void webserver_post_callback(char *key, char *val)
   {
     gcode_read_cmd(val);
   }
+  else if (strcmp(key, "gcode-file") == 0)
+  {
+    ESP_LOGI(TAG, "gcode file is downloading...");
+    FILE *print = fopen(SD_MOUNT_POINT"/current.gcode", "w");
+    fprintf(print, "%s", val);
+    fclose(print);
+    ESP_LOGI(TAG, "complete");
+  }
+  else if (strcmp(key, "print-start") == 0)
+  {
+    ESP_LOGI(TAG, "print started...");
+    FILE *print = fopen(SD_MOUNT_POINT"/current.gcode", "r");
+    gcode_read_file(print);
+    fclose(print);
+    ESP_LOGI(TAG, "print complete");
+  }
   else
   {
     ESP_LOGW(TAG, "'%s' key token unknown", key);
@@ -175,8 +193,6 @@ void webserver_post_callback(char *key, char *val)
 
 void gcode_cmd_callback(char cmd_type, int cmd_number)
 {
-  ESP_LOGI(TAG, "Command : %c%i", cmd_type, cmd_number);
-  ESP_LOGI(TAG, "X%f", gcode_get_param_value('X'));
   if (cmd_type == 'G')
   {
     if (cmd_number == 0)

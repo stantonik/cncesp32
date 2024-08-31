@@ -19,11 +19,6 @@ extern "C" {
 /******************************/
 /*      Macro Definitions     */
 /******************************/
-#define WIFI_SSID "SFR_8450"
-#define WIFI_PASSWORD "uhq55dykr8fni27ucvb4"
-#define WIFI_AUTH_MODE WIFI_AUTH_WPA_WPA2_PSK
-
-#define SERVER_PORT 80
 
 /******************************/
 /*   Typedefs, Struct, Enums  */
