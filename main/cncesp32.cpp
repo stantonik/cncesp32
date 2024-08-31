@@ -14,6 +14,7 @@
 #include <cstring>
 #include <string.h>
 
+#include "freertos/idf_additions.h"
 #include "stepperesp.h"
 #include "webserver.h"
 #include "gcode.h"
@@ -40,6 +41,7 @@ motor_handle_t xmotor, ymotor, zmotor, emotor;
 /******************************/
 /*    Function Prototypes     */
 /******************************/
+void gcode_task(void *arg);
 
 /******************************/
 /*   Function Definitions     */
@@ -171,6 +173,7 @@ void webserver_post_callback(char *key, char *val)
   }
   else if (strcmp(key, "gcode-file") == 0)
   {
+    // TODO : not working..
     ESP_LOGI(TAG, "gcode file is downloading...");
     FILE *print = fopen(SD_MOUNT_POINT"/current.gcode", "w");
     fprintf(print, "%s", val);
@@ -179,16 +182,21 @@ void webserver_post_callback(char *key, char *val)
   }
   else if (strcmp(key, "print-start") == 0)
   {
-    ESP_LOGI(TAG, "print started...");
-    FILE *print = fopen(SD_MOUNT_POINT"/current.gcode", "r");
-    gcode_read_file(print);
-    fclose(print);
-    ESP_LOGI(TAG, "print complete");
+    xTaskCreatePinnedToCore(gcode_task, "gcodeTask", 8192, NULL, 1, NULL, 1); 
   }
   else
   {
     ESP_LOGW(TAG, "'%s' key token unknown", key);
   }
+}
+
+void gcode_task(void *)
+{
+  ESP_LOGI(TAG, "print started...");
+  FILE *print = fopen(SD_MOUNT_POINT"/current.gcode", "r");
+  gcode_read_file(print);
+  fclose(print);
+  ESP_LOGI(TAG, "print complete");
 }
 
 void gcode_cmd_callback(char cmd_type, int cmd_number)
@@ -207,6 +215,12 @@ void gcode_cmd_callback(char cmd_type, int cmd_number)
   else if (cmd_type == 'M')
   {
 
+  }
+
+  // wait until done
+  while (motor_get_state(xmotor) != MOTOR_STATE_STILL || motor_get_state(ymotor) != MOTOR_STATE_STILL)
+  {
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
 

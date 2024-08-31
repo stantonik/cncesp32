@@ -195,8 +195,7 @@ esp_err_t root_get_handler(httpd_req_t *req)
 
 esp_err_t root_post_handler(httpd_req_t *req)
 {
-  ESP_LOGI(TAG, "root_post_handler req->uri=[%s]", req->uri);
-  ESP_LOGI(TAG, "root_post_handler content length %i", (int)req->content_len);
+  ESP_LOGI(TAG, "req->uri=[%s], length %i", req->uri, (int)req->content_len);
 
   char *buf = malloc(req->content_len + 1);
   size_t off = 0;
@@ -216,7 +215,7 @@ esp_err_t root_post_handler(httpd_req_t *req)
     off += ret;
   }
   buf[off] = '\0';
-  ESP_LOGI(TAG, "root_post_handler buf=[%s]", buf);
+  ESP_LOGI(TAG, "buf=[%s]", buf);
 
   jsmn_parser p;
   jsmn_init(&p);
@@ -236,10 +235,8 @@ esp_err_t root_post_handler(httpd_req_t *req)
 
   free(buf);
 
-  // Redirect to the root page
-  httpd_resp_set_status(req, "303 See Other");
-  httpd_resp_set_hdr(req, "Location", "/");
-  httpd_resp_sendstr(req, "Redirecting to /");
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_sendstr(req, "{\"status\": \"success\"}");
 
   return ESP_OK;
 }
