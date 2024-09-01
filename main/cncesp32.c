@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "stepperesp.h"
+#include "extruder.h"
 #include "webserver.h"
 #include "gcode.h"
 #include "sd.h"
@@ -22,26 +23,24 @@
 #include "freertos/task.h"
 
 /******************************/
-/*     Global Variables       */
+/*     Static Variables       */
 /******************************/
 #define TAG "cncesp32"
 
 float xpos, ypos, zpos;
+motor_handle_t xmotor, ymotor, zmotor;
 
-motor_handle_t xmotor, ymotor, zmotor, emotor;
-
-/******************************/
-/*     Static Variables       */
-/******************************/
+bool relative_pos;
+bool relative_extr;
 
 /******************************/
 /*    Function Prototypes     */
 /******************************/
 esp_err_t init();
-esp_err_t move_absolute(float x, float y, float z, float f);
-esp_err_t move_relative(float x, float y, float z, float f);
+esp_err_t move(float x, float y, float z, float f, bool relative);
 
 void webserver_post_callback(char *key, char *val);
+void display_ctrl_callback(char *key, char *val);
 void gcode_cmd_callback(char cmd_type, int cmd_number);
 
 void gcode_task(void *arg);
@@ -57,6 +56,8 @@ esp_err_t init()
   gcode_set_cmd_callback(gcode_cmd_callback);
 
   /* Motors initialization */
+  ESP_ERROR_CHECK(extruder_init());
+
   struct motor_config motor_config = { 0 };
 #define CREATE_MOTOR(axis, motor_config) \
   motor_config.name = #axis[0]; \
@@ -70,7 +71,6 @@ esp_err_t init()
   CREATE_MOTOR(x, motor_config);
   CREATE_MOTOR(y, motor_config);
   CREATE_MOTOR(z, motor_config);
-  CREATE_MOTOR(e, motor_config);
 
   float lead;
   config_get_setting(config_x_lead, &lead, CONFIG_FLOAT);
@@ -79,8 +79,6 @@ esp_err_t init()
   motor_set_lead(ymotor, lead);
   config_get_setting(config_z_lead, &lead, CONFIG_FLOAT);
   motor_set_lead(zmotor, lead);
-  config_get_setting(config_e_lead, &lead, CONFIG_FLOAT);
-  motor_set_lead(emotor, lead);
 
   struct motor_profile_config motor_profile_config = {  };
   char temp[16];
@@ -99,12 +97,6 @@ esp_err_t init()
   SET_PROFILE(y, motor_profile_config);
   SET_PROFILE(z, motor_profile_config);
 
-  /* Temp */
-  motor_enable(xmotor);
-  motor_enable(ymotor);
-  motor_enable(zmotor);
-  motor_enable(emotor);
-
   /* Server initialization */
   webserver_init();
   webserver_set_post_callback(webserver_post_callback);
@@ -112,13 +104,18 @@ esp_err_t init()
   return ESP_OK;
 }
 
-esp_err_t move_absolute(float x, float y, float z, float f)
+/* Utilities functions */
+esp_err_t move(float x, float y, float z, float f, bool relative)
 {
-  return move_relative(x - xpos, y - ypos, z - zpos, f);
-}
+  if (!relative) { x = x - xpos; y = y - ypos; z = z - zpos; }
+  if (motor_get_state(xmotor) == MOTOR_STATE_DISABLE
+      || motor_get_state(xmotor) == MOTOR_STATE_DISABLE
+      || motor_get_state(xmotor) == MOTOR_STATE_DISABLE)
+  {
+    ESP_LOGW(TAG, "motors disable");
+    return -1;
+  }
 
-esp_err_t move_relative(float x, float y, float z, float f)
-{
   /* Calculate the euclidien distance to the target point */
   float d = sqrt(x * x + y * y + z * z);
 
@@ -134,6 +131,14 @@ esp_err_t move_relative(float x, float y, float z, float f)
   motor_turn_mm(ymotor, y, yf);
   motor_turn_mm(zmotor, z, zf);
 
+  /* Blocking */
+  while (motor_get_state(xmotor) != MOTOR_STATE_STILL 
+      || motor_get_state(ymotor) != MOTOR_STATE_STILL 
+      || motor_get_state(zmotor) != MOTOR_STATE_STILL) 
+  {
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+
   xpos += x;
   ypos += y;
   zpos += z;
@@ -141,19 +146,21 @@ esp_err_t move_relative(float x, float y, float z, float f)
   return 0;
 }
 
+/* Communication callbacks */
+
 void webserver_post_callback(char *key, char *val)
 {
   if (strcmp(key, "X_move_from") == 0)
   {
-    move_relative(atof(val), 0, 0, 30); 
+    move(atof(val), 0, 0, 30, true); 
   }
   else if (strcmp(key, "Y_move_from") == 0)
   {
-    move_relative(0, atof(val), 0, 30); 
+    move(0, atof(val), 0, 30, true); 
   }
   else if (strcmp(key, "Z_move_from") == 0)
   {
-    move_relative(0, 0, atof(val), 30); 
+    move(0, 0, atof(val), 30, true); 
   }
   else if (strcmp(key, "gcode-cmd") == 0)
   {
@@ -178,6 +185,102 @@ void webserver_post_callback(char *key, char *val)
   }
 }
 
+void display_ctrl_callback(char *key, char *val)
+{
+
+}
+
+void gcode_cmd_callback(char cmd_type, int cmd_number)
+{
+  if (cmd_type == 'G')
+  {
+    switch (cmd_number) 
+    {
+      case 0: // Linear movement (non-extruding)
+        move(gcode_get_param_value('X'), gcode_get_param_value('Y'), gcode_get_param_value('Z'), gcode_get_param_value('F'), relative_pos);
+        break;
+      case 1: // Linear movement (extruding)
+        move(gcode_get_param_value('X'), gcode_get_param_value('Y'), gcode_get_param_value('Z'), gcode_get_param_value('F'), relative_pos);
+        break;
+      case 10: // Retract
+        break;
+      case 11: // Unretract
+        break;
+      case 12: // Clean nozzle
+        break;
+      case 20: // Inch unit
+        break;
+      case 21: // mm unit
+        break;
+      case 28: // Homing
+        break;
+      case 90: // Absolute positioning
+        relative_extr = false;
+        break;
+      case 91: // Relative positioning
+        relative_extr = true;
+        break;
+      case 92: // Set pos
+        xpos = gcode_get_param_value('X');
+        ypos = gcode_get_param_value('Y');
+        zpos = gcode_get_param_value('Z');
+        epos = gcode_get_param_value('E');
+        break;
+      default: goto unrecognize_command;
+    }
+  }
+  else if (cmd_type == 'M')
+  {
+    switch (cmd_number) 
+    {
+      case 0: // Stop the printer
+        break;
+      case 6: // Turn fan on
+        break;
+      case 7: // Turn fan off
+        break;
+      case 17: // Enable steppers
+        motor_enable(xmotor);
+        motor_enable(ymotor);
+        motor_enable(zmotor);
+        motor_enable(emotor);
+        break;
+      case 82: // Set extruder to absolute
+        relative_extr = false;
+        break;
+      case 83: // Set extruder to relative
+        relative_extr = true;
+        break;
+      case 18: // Disable steppers
+      case 84: 
+        motor_disable(xmotor);
+        motor_disable(ymotor);
+        motor_disable(zmotor);
+        motor_disable(emotor);
+        break;
+      case 104: // Set extruder temp (non-blocking)
+        extruder_set_temp(gcode_get_param_value('S'), false);
+        break;
+      case 109: // Set extruder temp (blocking)
+        extruder_set_temp(gcode_get_param_value('S'), true);
+        break; 
+      case 112: // Emergency stop
+        break;
+      case 220: // Set speed factor
+        break;
+      case 221: // Set extruder speed factor
+        break;
+      default: goto unrecognize_command;
+    }
+  }
+  else goto unrecognize_command;
+  return;
+
+unrecognize_command: ESP_LOGW(TAG, "%c%i is unrecognize", cmd_type, cmd_number);
+}
+
+/* Tasks */
+
 void gcode_task(void *arg)
 {
   ESP_LOGI(TAG, "print started...");
@@ -187,30 +290,7 @@ void gcode_task(void *arg)
   ESP_LOGI(TAG, "print complete");
 }
 
-void gcode_cmd_callback(char cmd_type, int cmd_number)
-{
-  if (cmd_type == 'G')
-  {
-    if (cmd_number == 0)
-    {
-      move_absolute(gcode_get_param_value('X'), gcode_get_param_value('Y'), gcode_get_param_value('Z'), gcode_get_param_value('F'));
-    }
-    else if (cmd_number == 1)
-    {
-      move_absolute(gcode_get_param_value('X'), gcode_get_param_value('Y'), gcode_get_param_value('Z'), gcode_get_param_value('F'));
-    }
-  }
-  else if (cmd_type == 'M')
-  {
-
-  }
-
-  // wait until done
-  while (motor_get_state(xmotor) != MOTOR_STATE_STILL || motor_get_state(ymotor) != MOTOR_STATE_STILL)
-  {
-    vTaskDelay(pdMS_TO_TICKS(10));
-  }
-}
+/* Main */
 
 void app_main(void)
 {
